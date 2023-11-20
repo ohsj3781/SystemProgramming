@@ -6,188 +6,156 @@
 #include <string.h>
 #include <sys/wait.h>
 #define MAXSTRINGLENGTH 200
+#define PATHSIZE 128
 
-char *cmd_type1[6] = {"ls", "man", "grep", "sort", "awk", "bc"};
-const int cmd_type1_num = 6;
+const int cmd_size = 15;
+char *valid_cmd[cmd_size] = {"ls", "man", "grep", "sort", "awk", "bc", "head", "tail", "cat", "mv", "rm", "cp", "cd", "pwd", "exit"};
 
-char *cmd_type2[3] = {"head", "tail", "cat"};
-const int cmd_type2_num = 3;
-
-char *cmd_type3[4] = {"mv", "rm", "cp", "cd"};
-const int cmd_type3_num = 4;
-
-char *cmd_type4[2] = {"pwd", "exit"};
-const int cmd_type4_num = 2;
-
-const int identify_cmd_type(char *command)
+const int identify_cmd(char *command)
 {
-    for (int i = 0; i < cmd_type1_num; ++i)
+    for (int i = 0; i < cmd_size; ++i)
     {
-        if (strcmp(command, cmd_type1[i]) == 0)
+        if (strcmp(command, valid_cmd[i]) == 0)
         {
             return 1;
         }
     }
-    for (int i = 0; i < cmd_type2_num; ++i)
+    if (strstr(command, "./") != NULL)
     {
-        if (strcmp(command, cmd_type2[i]) == 0)
-        {
-            return 2;
-        }
+        return 2;
     }
-    for (int i = 0; i < cmd_type3_num; ++i)
-    {
-        if (strcmp(command, cmd_type3[i]) == 0)
-        {
-            return 3;
-        }
-    }
-    for (int i = 0; i < cmd_type4_num; ++i)
-    {
-        if (strcmp(command, cmd_type4[i]) == 0)
-        {
-            return 4;
-        }
-    }
+
     return -1;
 }
 
-const int execute_commands(char *commands, int *fd)
+const int commands_tok(char *commands, char *commands_arr[MAXSTRINGLENGTH])
 {
-
-    char *is_input_redirection_exist = strstr(commands, "<");
-    char *is_output_redirection_exist = strstr(commands, ">");
-    char *is_output_redirection_appending_exist = strstr(commands, ">>");
-
-    // tokenize command and redirection
-    if (is_input_redirection_exist != NULL)
-    {
-        *is_input_redirection_exist = '\0';
-        ++is_input_redirection_exist;
-        while(*is_input_redirection_exist==' '){
-            ++is_input_redirection_exist;
-        }
-    }
-    if (is_output_redirection_exist != NULL)
-    {
-        *is_output_redirection_exist = '\0';
-        ++is_output_redirection_exist;
-        while(*is_output_redirection_exist==' '){
-            ++is_output_redirection_exist;
-        }
-    }
-    if (is_output_redirection_appending_exist != NULL)
-    {
-        while (*is_output_redirection_appending_exist == '>')
-        {
-            *is_output_redirection_appending_exist = '\0';
-            ++is_output_redirection_appending_exist;
-            while(*is_output_redirection_appending_exist==' '){
-            ++is_output_redirection_appending_exist;
-        }
-        }
-    }
-
-    int input_fd = -1, output_fd = -1;
-
-    // redirection
-    if (is_output_redirection_appending_exist != NULL)
-    {
-        // output file(appending) doesn't exist
-        if ((output_fd = open(is_output_redirection_appending_exist, O_WRONLY | O_APPEND)) < 0)
-        {
-            fprintf(stderr, "No such file\n");
-            exit(1);
-        }
-        dup2(output_fd, STDOUT_FILENO);
-    }
-    else
-    {
-        printf("input file is %s\n",is_input_redirection_exist);
-        // input file doesn't exist
-        if (is_input_redirection_exist != NULL)
-        {
-            if ((input_fd = open(is_input_redirection_exist, O_RDONLY)) < 0)
-            {
-                fprintf(stderr, "No such file\n");
-                exit(1);
-            }
-            dup2(input_fd, STDIN_FILENO);
-        }
-        if (is_output_redirection_exist != NULL)
-        {
-            output_fd = open(is_output_redirection_exist, O_WRONLY | O_CREAT);
-            dup2(output_fd, STDOUT_FILENO);
-        }
-    }
-
-    // execute commands
-
-    char **args = (char **)calloc(strlen(commands), sizeof(char *));
-    int args_len = 0;
-    // tokenize commands
+    int len = 0;
     char *ptr = strtok(commands, " ");
     while (ptr != NULL)
     {
-
-        args[args_len] = (char *)calloc(strlen(ptr), sizeof(char));
-        strcpy(args[args_len++], ptr);
+        commands_arr[len++] = ptr;
         ptr = strtok(NULL, " ");
     }
-    args[args_len] = NULL;
+    commands_arr[len] = NULL;
+    return len;
+}
 
-    char path[100];
-    sprintf(path, "/bin/%s", args[0]);
-
-     const int cmd_type = identify_cmd_type(args[0]);
-
-    if (cmd_type < 0)
+const int execute_commands(char *commands)
+{
+    pid_t pid;
+    int status;
+    // child process
+    if ((pid = fork()) == 0)
     {
-        fprintf(stderr, "Command not found\n");
-        exit(1);
-    }
+        // tokenize commands
+        char *commands_arr[MAXSTRINGLENGTH];
+        const int commands_arr_len = commands_tok(commands, commands_arr);
 
-    execv(path, args);
+        // redirection
+        int input_redirection = -1;
+        int ouput_redirection = -1;
+        for (int i = 0; i < commands_arr_len; ++i)
+        {
+            // input redirection
+            if (strcmp(commands_arr[i], "<") == 0)
+            {
+                // input file doesn't exist
+                if (access(commands_arr[i + 1], F_OK) != 0)
+                {
+                    fprintf(stderr, "No such file\n");
+                    return -1;
+                }
+                if (access(commands_arr[i + 1], R_OK) != 0)
+                {
+                    fprintf(stderr, "%s doesn't have read permission\n", commands_arr[i + 1]);
+                    return -1;
+                }
+                input_redirection = open(commands_arr[i + 1], O_RDONLY);
+                dup2(input_redirection, STDIN_FILENO);
+            }
+            // output redirection
+            else if (strcmp(commands_arr[i], ">") == 0)
+            {
+                ouput_redirection = open(commands_arr[i + 1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                dup2(ouput_redirection, STDOUT_FILENO);
+            }
+            // output redirection appending
+            else if (strcmp(commands_arr[i], ">>") == 0)
+            {
+                ouput_redirection = open(commands_arr[i + 1], O_WRONLY | O_APPEND, 0666);
+                dup2(ouput_redirection, STDOUT_FILENO);
+                break;
+            }
+        }
+
+        // identify command
+        char *command = commands_arr[0];
+        int cmd_type;
+
+        if ((cmd_type = identify_cmd(command)) < 0)
+        {
+            fprintf(stderr, "Command not found\n");
+            return -1;
+        }
+
+        //execute command,m
+    }
+    // parent process
+    else
+    {
+        waitpid(pid, &status, NULL);
+    }
     return 0;
 }
 
-const int execute_input(char *input, int *fd)
+const int execute_input(char *input)
 {
-    if (fd != NULL)
-    {
-        close(fd[0]);
-    }
     const int input_length = strlen(input);
 
-    char *is_pipeline_exist = strchr(input, '|');
-    pid_t pid;
-    // // pipeline exist
-    // if (is_pipeline_exist != NULL)
-    // {
-    //     *is_pipeline_exist = '\0';
-    //     int fd[2];
-    //     if (pipe(fd) < 0)
-    //     {
-    //         printf("make pipeline failed\n");
-    //         exit(1);
-    //     }
-    //     char *left_pipeline = input;
-    //     char *right_pipeline = is_pipeline_exist + 1;
-    //     // tokenizet str
-    //     execute_commands(left_pipeline, fd);
-    //     // handel remain input
-    //     // execute_(input)
-    //     execute_input(right_pipeline, fd);
-    // }
-    // pipeline doesn't exist
-    if((pid=fork())==0)
+    char *pipeline = strchr(input, '|');
+    // pipeline exist
+    if (pipeline != NULL)
     {
-        execute_commands(input, NULL);
+        *pipeline++ = '\0';
+        while (*pipeline == ' ')
+        {
+            ++pipeline;
+        }
 
+        int fd[2];
+        pipe(fd);
+
+        char *left_pipeline = input;
+        char *right_pipeline = pipeline;
+
+        pid_t pid;
+        int status;
+        // child process
+        if ((pid = fork()) == 0)
+        {
+            // close fd read and connect fd write to stdout
+            close(fd[0]);
+            dup2(STDOUT_FILENO, fd[1]);
+
+            execute_commands(left_pipeline);
+        }
+        else
+        {
+            waitpid(pid, &status, NULL);
+            // close fd write and connect fd read to stdin
+            close(fd[1]);
+            dup2(STDIN_FILENO, fd[0]);
+            execute_input(right_pipeline);
+        }
     }
-    wait(NULL);
-    
-    return 0;
+    // pipeline doesn't exist
+    else
+    {
+        execute_commands(input);
+    }
+
+    exit(0);
 }
 
 int main()
@@ -207,8 +175,16 @@ int main()
         {
             break;
         }
-
-        execute_input(input, NULL);
+        // child process
+        if ((pid = fork()) == 0)
+        {
+            execute_input(input);
+        }
+        // parent process
+        else
+        {
+            waitpid(pid, &status, NULL);
+        }
     }
     return 0;
 }
