@@ -9,7 +9,30 @@
 #define PATHSIZE 128
 
 const int cmd_size = 15;
-char *valid_cmd[cmd_size] = {"ls", "man", "grep", "sort", "awk", "bc", "head", "tail", "cat", "mv", "rm", "cp", "cd", "pwd", "exit"};
+char *valid_cmd[] = {"ls", "man", "grep", "sort", "awk", "bc", "head", "tail", "cat", "mv", "rm", "cp", "cd", "pwd", "exit"};
+
+void head()
+{
+}
+
+void tail() {}
+void cat() {}
+void cp() {}
+void rm() {}
+void cd() {}
+void mv() {}
+void pwd()
+{
+    char dir[MAXSTRINGLENGTH];
+    getcwd(dir, MAXSTRINGLENGTH);
+    fprintf(stdout, "%s\n", dir);
+    return;
+}
+// void exit(){}
+
+void makepath(char *path, char *command)
+{
+}
 
 const int identify_cmd(char *command)
 {
@@ -99,12 +122,47 @@ const int execute_commands(char *commands)
             return -1;
         }
 
-        //execute command,m
+        // execute command
+        char path[PATHSIZE];
+        makepath(path, command);
+
+        if (strcmp(command, "head") == 0)
+        {
+        }
+        else if (strcmp(command, "tail") == 0)
+        {
+        }
+        else if (strcmp(command, "cat") == 0)
+        {
+        }
+        else if (strcmp(command, "cp") == 0)
+        {
+        }
+        else if (strcmp(command, "rm") == 0)
+        {
+        }
+        else if (strcmp(command, "cd") == 0)
+        {
+        }
+        else if (strcmp(command, "mv") == 0)
+        {
+        }
+        else if (strcmp(command, "pwd") == 0)
+        {
+            pwd();
+        }
+        else if (strcmp(command, "exit") == 0)
+        {
+        }
+        else
+        {
+            execv(path, commands_arr);
+        }
     }
     // parent process
     else
     {
-        waitpid(pid, &status, NULL);
+        waitpid(pid, &status, 0);
     }
     return 0;
 }
@@ -142,7 +200,7 @@ const int execute_input(char *input)
         }
         else
         {
-            waitpid(pid, &status, NULL);
+            waitpid(pid, &status, 0);
             // close fd write and connect fd read to stdin
             close(fd[1]);
             dup2(STDIN_FILENO, fd[0]);
@@ -183,7 +241,7 @@ int main()
         // parent process
         else
         {
-            waitpid(pid, &status, NULL);
+            waitpid(pid, &status, 0);
         }
     }
     return 0;
