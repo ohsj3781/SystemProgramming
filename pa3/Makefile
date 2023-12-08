@@ -3,7 +3,7 @@ TARGET=pa3.out
 SRC=pa3.c
 
 $(TARGET) : $(SRC)
-	$(CXX) -o $@ $^
+	$(CXX) -o $@ $^ -lpthread
 
 clean:
- rm $(TARGET)
+	rm $(TARGET)
